@@ -9,6 +9,7 @@
     'depends': ['point_of_sale'],
     'data': [
         'templates.xml',
+        'views/pos_order_view.xml'
     ],
     'qweb': ['static/src/xml/*.xml'],
     'installable': True

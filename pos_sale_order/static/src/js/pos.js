@@ -9,12 +9,19 @@ function pos_website_sale(instance, module){ //module is instance.point_of_sale
             this.order_name = false;
         },
         find_sale_order: function(name_like){
-            return new instance.web.Model('sale.order').query(['partner_id', 'amount_total']).filter([['name','=like',name_like]]).all();
+            return new instance.web.Model('sale.order')
+                .query(['partner_id', 'amount_total', 'name'])
+                .filter([
+                    ['name','=like',name_like],
+                    ['payment_ids', '=', false],
+                    ['procurement_group_id', '=', false],
+                    ['state', '!=', 'cancel']])
+                .all()
         },
         load_sale_order_lines: function(id){
             return new instance.web.Model('sale.order.line').query(['product_id', 'product_uom_qty','discount']).filter([['order_id','=',id]]).all();
         },
-        apply_sale_order: function(id){
+        apply_sale_order: function(id, partner_id){
             var self = this;
             self.load_sale_order_lines(id)
             .then(function(lines){
@@ -27,6 +34,10 @@ function pos_website_sale(instance, module){ //module is instance.point_of_sale
                     order.addProduct(product, options);
                     if (item.discount)
                         order.getSelectedLine().set_discount(item.discount);
+                    var partner = self.pos.db.get_partner_by_id(partner_id);
+                    order.set_client(partner || undefined);
+                    order.sale_order_id = id;
+                    order.set('sale_order_id', id);
                 });
                 self.hide();
             });
@@ -39,15 +50,29 @@ function pos_website_sale(instance, module){ //module is instance.point_of_sale
             $('.website_order button').click(function(){
                 self.find_sale_order('%'+self.order_name+'%').then(function(orders){
                     if (orders.length > 1){
-                        //TODO show orders list
-                        //return;
-                    }
-                    var sale_order = orders[0];
-                    if (! sale_order){
-                        // TODO show message
+                        //TODO Allow to select a order from the list
+                        list = '';
+                        for (var i = 0, len = orders.length; i < len; i++){
+                            list += orders[i].name + ", ";
+                        }
+                        self.pos_widget.screen_selector.show_popup('error', {
+                            'message': _t('Multiple matching'),
+                            'comment': _t("Several orders found for '" +
+                                          self.order_name + "': " + list),
+                        });
+                    } else if (!orders[0]){
+                        self.pos_widget.screen_selector.show_popup('error', {
+                            'message': _t('Order not found'),
+                            'comment': _t("No order found for '" +
+                                          self.order_name + "'."),
+                        });
                         return;
+                    } else {
+                        var sale_order = orders[0]
+                        self.apply_sale_order(
+                            sale_order.id,
+                            sale_order.partner_id[0])
                     }
-                    self.apply_sale_order(sale_order.id);
                 });
             });
         },
@@ -88,6 +113,24 @@ function pos_website_sale(instance, module){ //module is instance.point_of_sale
             this.website_order = new module.WebsiteOrderWidget(this);
             this.website_order.replace('.placeholder-WebsiteOrderWidget');
         }
+    });
+
+    module.PaymentScreenWidget = module.PaymentScreenWidget.extend({
+        validate_order: function (options) {
+            var SaleOrderModel = new instance.web.Model('sale.order');
+            selectedOrder = this.pos.get('selectedOrder');
+            SaleOrderModel.call('action_cancel', [selectedOrder.sale_order_id]);
+            this._super(options);
+        },
+    });
+
+    var OrderSuper = module.Order;
+    module.Order = module.Order.extend({
+        export_as_JSON: function() {
+            var json = OrderSuper.prototype.export_as_JSON.apply(this,arguments);
+            json.sale_order_id = this.sale_order_id;
+            return json;
+        },
     });
 }
 
