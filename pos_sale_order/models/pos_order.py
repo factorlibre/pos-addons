@@ -14,5 +14,5 @@ class PosOrder(models.Model):
     @api.model
     def _order_fields(self, ui_order):
         res = super(PosOrder, self)._order_fields(ui_order)
-        res['sale_order'] = ui_order['sale_order_id']
+        res['sale_order'] = ui_order.get('sale_order_id', False)
         return res
