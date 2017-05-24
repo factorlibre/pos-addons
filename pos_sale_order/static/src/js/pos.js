@@ -119,7 +119,9 @@ function pos_website_sale(instance, module){ //module is instance.point_of_sale
         validate_order: function (options) {
             var SaleOrderModel = new instance.web.Model('sale.order');
             selectedOrder = this.pos.get('selectedOrder');
-            SaleOrderModel.call('action_cancel', [selectedOrder.sale_order_id]);
+            if (selectedOrder.sale_order_id){
+                SaleOrderModel.call('action_cancel', [selectedOrder.sale_order_id]);
+            }
             this._super(options);
         },
     });
